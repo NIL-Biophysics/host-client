@@ -6,7 +6,7 @@ def send_image(image_path):
         img_bytes = img_file.read()
 
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('localhost', 8080))
+    client_socket.connect(('localhost', 50000))
 
     client_socket.sendall(img_bytes)
     client_socket.shutdown(socket.SHUT_WR)
