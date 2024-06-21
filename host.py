@@ -213,9 +213,9 @@ def process_image_from_bytes(image_bytes):
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 8080))
+    server_socket.bind(('localhost', 50000))
     server_socket.listen(5)
-    print("Server listening on port 8080...")
+    print("Server listening on port 50000...")
     while True:
         client_socket, addr = server_socket.accept()
         print(f"Connection from {addr}")
