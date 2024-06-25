@@ -9,6 +9,7 @@ from skimage.measure import label, regionprops
 from scipy import ndimage as ndi
 import socket
 import io
+import threading
 
 
 # PART 1 - MODEL
@@ -198,17 +199,32 @@ def coordinates(image):
 
 # PART 7 - MAIN FUNCTION (for testing without GUI)
 def process_image_from_bytes(image_bytes):
+    # Check the first byte
+    first_byte = image_bytes[0:1]
+    # Remove the first byte from the image data
+    image_bytes = image_bytes[1:]
+
     img = Image.open(io.BytesIO(image_bytes))
     subpics, original_size = split(img)
     predicted = predict(subpics)
     post_processed = process_list(predicted)
     mask = reunite(post_processed, original_size)
     mask = mask * 255
-    cv2.imwrite('y_pred.png', mask)
     coords = coordinates(mask)
-    for i, coord in enumerate(coords):
-        print(f"Cell {i + 1}: {coord[0]}, {coord[1]}")
-    return coords
+
+    if first_byte == b'\xAA':
+        # AA byte: return coordinates
+        for i, coord in enumerate(coords):
+            print(f"Cell {i + 1}: {coord[0]}, {coord[1]}")
+        return coords, "coords"
+    elif first_byte == b'\xAB':
+        # AB byte: return mask as image
+        mask_image = Image.fromarray(mask.astype(np.uint8))
+        byte_arr = io.BytesIO()
+        mask_image.save(byte_arr, format='PNG')
+        return byte_arr.getvalue(), "image"
+    else:
+        raise ValueError("Invalid first byte")
 
 
 def start_server():
@@ -220,7 +236,6 @@ def start_server():
         client_socket, addr = server_socket.accept()
         print(f"Connection from {addr}")
 
-        # Receiving data in chunks
         data = b""
         while True:
             packet = client_socket.recv(1024 * 1024)
@@ -229,9 +244,16 @@ def start_server():
             data += packet
 
         if data:
-            coords = process_image_from_bytes(data)
-            response = f"Coordinates: {coords}"
-            client_socket.send(response.encode())
+            try:
+                result, result_type = process_image_from_bytes(data)
+                if result_type == "coords":
+                    response = f"Coordinates: {result}".encode()
+                else:
+                    response = result
+                client_socket.sendall(response)
+            except Exception as e:
+                error_message = f"Error processing image: {str(e)}".encode()
+                client_socket.sendall(error_message)
 
         client_socket.close()
 
