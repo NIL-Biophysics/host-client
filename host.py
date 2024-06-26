@@ -10,6 +10,7 @@ from scipy import ndimage as ndi
 import socket
 import io
 import threading
+import subprocess
 
 
 # PART 1 - MODEL
@@ -198,6 +199,14 @@ def coordinates(image):
 
 
 # PART 7 - MAIN FUNCTION (for testing without GUI)
+def ping(host):
+    try:
+        subprocess.check_output(["ping", "-n", "1", host], stderr=subprocess.STDOUT, universal_newlines=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
 def process_image_from_bytes(image_bytes):
     # Check the first byte
     first_byte = image_bytes[0:1]
@@ -227,11 +236,39 @@ def process_image_from_bytes(image_bytes):
         raise ValueError("Invalid first byte")
 
 
+def check_server(ip, port):
+    try:
+        with socket.create_connection((ip, port), timeout=1):
+            return True
+    except (socket.timeout, ConnectionRefusedError):
+        return False
+
+
+def handle_command_input(server_ip, server_port):
+    while True:
+        command = input().lower()
+        if command == "ping":
+            if check_server(server_ip, server_port):
+                print(f"Server running at {server_ip}:{server_port}")
+            else:
+                print(f"Server at {server_ip}:{server_port} is not responding")
+        else:
+            print("Invalid command. Use 'ping'.")
+
+
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 50000))
+    server_ip = 'localhost'
+    server_port = 50000
+    server_socket.bind((server_ip, server_port))
     server_socket.listen(5)
-    print("Server listening on port 50000...")
+    print(f"Server listening on port {server_port}...")
+
+    # Start a separate thread for command input
+    command_thread = threading.Thread(target=handle_command_input, args=(server_ip, server_port))
+    command_thread.daemon = True
+    command_thread.start()
+
     while True:
         client_socket, addr = server_socket.accept()
         print(f"Connection from {addr}")
